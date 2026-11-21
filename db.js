@@ -128,8 +128,9 @@ const DB = (() => {
     sortAll(); saveCache(); fire({ table });
   };
   const del = async (table, id) => {
-    const { error } = await sb.from(table).delete().eq('id', id);
+    const { data, error } = await sb.from(table).delete().eq('id', id).select('id');
     if (error) throw error;
+    if (!data || !data.length) { const e = new Error('not-allowed'); e.code = 'DENIED'; throw e; }
     removeRow(table, id); saveCache(); fire({ table });
   };
 
