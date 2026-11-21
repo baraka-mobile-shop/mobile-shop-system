@@ -446,7 +446,7 @@ function openItem(id) {
   $('#fColor').value = i ? (i.color || '') : ''; $('#fBat').value = i ? (i.battery || '') : ''; $('#fImei').value = i ? (i.imei || '') : '';
   $('#fSup').value = i ? (i.supplier || '') : ''; $('#itemMsg').textContent = ''; $('#fImeis').value = ''; multiUI();
   $('#fTaxAmt').value = i ? (taxOf(i) || '') : '';
-  $('#itemDel').classList.toggle('hidden', !i); $('#itemDel').textContent = 'حذف الصنف';
+  $('#itemDel').classList.toggle('hidden', !i || !ownerOn()); $('#itemDel').textContent = 'حذف الصنف';
   $('#dItem').showModal();
 }
 async function saveItem() {
@@ -701,6 +701,32 @@ function askWho() {
   $('#dWho').showModal();
 }
 
+/* ============ ربط الجهاز ============ */
+function openLink() {
+  $('#linkPw').value = ''; $('#linkMsg').textContent = '';
+  $('#dLink').showModal();
+  setTimeout(() => $('#linkPw').focus(), 100);
+}
+async function linkOk() {
+  const pw = $('#linkPw').value.trim();
+  if (!pw) { $('#linkMsg').textContent = 'اكتب الكود الأول.'; return; }
+  const cfg = window.SHOP_CONFIG || {};
+  $('#linkMsg').textContent = ''; $('#linkOk').disabled = true;
+  try {
+    const role = await DB.link(cfg.url, cfg.key, pw);
+    $('#dLink').close();
+    cachedLocal = false;
+    await DB.init(cfg.url, cfg.key);
+    render();
+    toast(role === 'owner' ? 'اتربط الجهاز كجهاز مالك ✓' : 'اتربط الجهاز ✓');
+    if (!who()) askWho();
+  } catch (e) {
+    console.error(e);
+    $('#linkMsg').textContent = e && e.code === 'AUTH' ? 'الكود غلط. اتأكد منه وجرّب تاني.' : 'النت مش شغال. جرّب تاني.';
+  }
+  $('#linkOk').disabled = false;
+}
+
 /* ============ المالك ============ */
 function ownerSet(v) {
   try { localStorage.setItem('owner', v ? '1' : '0'); } catch (e) {}
@@ -831,6 +857,8 @@ function bind() {
   $('#whoList').onclick = e => { const b = e.target.closest('button'); if (b) $('#whoName').value = b.dataset.n; };
   $('#whoCancel').onclick = () => $('#dWho').close();
   $('#whoOk').onclick = () => { const n = $('#whoName').value.trim(); if (!n) return; try { localStorage.setItem('staff', n); } catch (e) {} $('#dWho').close(); render(); };
+  $('#linkOk').onclick = linkOk;
+  $('#linkPw').onkeydown = e => { if (e.key === 'Enter') linkOk(); };
 
   $('#ownerBtn').onclick = () => {
     if (ownerOn()) return ownerSet(false);
@@ -897,6 +925,16 @@ async function boot() {
     if (!who()) askWho();
   } catch (e) {
     console.error(e);
+    if (e && e.code === 'AUTH') {
+      $('#boot').classList.add('off');
+      if (DB.loadCache()) {
+        cachedLocal = true;
+        render();
+        say('واضحة آخر نسخة محفوظة على الجهاز (قراءة بس). اربط الجهاز بالكود عشان تشتغل.');
+      }
+      openLink();
+      return;
+    }
     if (DB.loadCache()) {
       cachedLocal = true;
       $('#boot').classList.add('off');
