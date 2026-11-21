@@ -80,6 +80,15 @@ const planRemaining = p => Math.max(0, planFinanced(p) - planPaid(p));
 const planNextDue = p => { const k = Math.floor(planPaid(p) / (+p.monthly || 1)); return addMonths(p.firstDue, Math.min(k, p.months - 1)); };
 const planLate = p => planRemaining(p) > 0 && dayStart(planNextDue(p)) < dayStart(Date.now());
 const planStatus = p => p.status === 'cancelled' ? 'ملغي' : planRemaining(p) <= 0 ? 'خلّص' : planLate(p) ? 'متأخر' : 'نشط';
+const waPhone = ph => { let d = String(ph || '').replace(/\D/g, ''); if (d.indexOf('00') === 0) d = d.slice(2); if (d.charAt(0) === '0') d = '20' + d.slice(1); else if (d.length === 10 && d.charAt(0) === '1') d = '20' + d; return d; };
+const WA_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.6-1.3.1-.2 0-.4 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.6 1.1 2.8c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2 0-.1-.2-.2-.4-.3z"/></svg>';
+const waRemind = p => {
+  const c = p.customer || {}; if (!c.phone) return '';
+  const rem = planRemaining(p); if (rem <= 0 || p.status === 'cancelled') return '';
+  const due = Math.min(+p.monthly || rem, rem), late = planLate(p);
+  const msg = 'أ/ ' + (c.name || 'عميلنا العزيز') + '،\n' + (late ? 'بنفتكر حضرتك إن القسط اتأخر' : 'بنفتكر حضرتك بالقسط الجاي') + ' على ' + (p.itemName || 'الجهاز') + ': ' + num(due) + ' ج.م' + (late ? ' وكان ميعاده يوم ' : ' ميعاده يوم ') + fdate(planNextDue(p)) + '.\n' + (late ? 'ياريت التسوية في أقرب وقت.' : 'في انتظارك في المحل.') + ((shop().name) ? '\n' + shop().name : '');
+  return 'https://wa.me/' + waPhone(c.phone) + '?text=' + encodeURIComponent(msg);
+};
 function planSchedule(p) {
   const rows = []; const fin = planFinanced(p);
   let covered = planPaid(p);
@@ -206,7 +215,7 @@ function renderPlans() {
       <div class="prog"><i class="${late ? 'late' : ''}" style="width:${pct}%"></i></div>
       <div class="prices"><span>الإجمالي: <b>${num(p.total)}</b></span><span>المدفوع: <b class="inn">${num((+p.down || 0) + paid)}</b></span><span>الباقي: <b class="${rem ? 'out' : 'inn'}">${num(rem)}</b></span></div>
       ${rem > 0 ? `<div class="note">القسط الجاي: ${num(Math.min(p.monthly, rem))} ج.م يوم ${fdate(planNextDue(p))}${late ? ' — <b class="out">متأخر!</b>' : ''}</div>` : ''}
-      <div class="act">${rem > 0 && p.status !== 'cancelled' ? `<button class="sell" data-a="pay" data-id="${p.id}"${canW() ? '' : ' disabled'}>تسجيل قسط</button>` : ''}<button data-a="plan" data-id="${p.id}">كشف حساب</button></div>
+      <div class="act">${rem > 0 && p.status !== 'cancelled' ? `<button class="sell" data-a="pay" data-id="${p.id}"${canW() ? '' : ' disabled'}>تسجيل قسط</button>` : ''}<button data-a="plan" data-id="${p.id}">كشف حساب</button>${waRemind(p) ? `<a class="wa-btn" target="_blank" rel="noopener" href="${waRemind(p)}">${WA_ICON} تذكير واتساب</a>` : ''}</div>
     </div>`;
   };
   return `<div class="stats">
@@ -217,6 +226,27 @@ function renderPlans() {
     <div class="bar"><input type="search" id="q" placeholder="ابحث باسم العميل أو تليفونه أو سريال الجهاز..." value="${esc(q)}"></div>
     ${act.length ? `<h3 class="sec">خطط نشطة</h3><div class="cards">${act.map(card).join('')}</div>` : '<div class="tbl"><div class="empty">مفيش أقساط نشطة. لما تبيع جهاز بالتقسيط هيظهر هنا.</div></div>'}
     ${done.length ? `<h3 class="sec">خطط منتهية</h3><div class="cards">${done.slice(0, 10).map(card).join('')}</div>` : ''}`;
+}
+
+/* ---- الرسم البياني الشهري ---- */
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+function monthlySeries(n) {
+  const out = [], d = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const m0 = new Date(d.getFullYear(), d.getMonth() - i, 1).getTime();
+    const m1 = new Date(d.getFullYear(), d.getMonth() - i + 1, 1).getTime();
+    out.push({ from: m0, to: m1, label: AR_MONTHS[new Date(m0).getMonth()], sales: 0, profit: 0 });
+  }
+  logL().forEach(l => { if (l.type !== 'sell') return; const b = out.find(x => l.t >= x.from && l.t < x.to); if (b) { b.sales += l.qty * l.price + (l.taxAmt || 0) * l.qty; b.profit += l.qty * (l.price - l.cost); } });
+  return out;
+}
+function chartHtml() {
+  const data = monthlySeries(6), max = Math.max(1, ...data.map(x => x.sales));
+  return `<div class="chart">${data.map(x => `<div class="ccol" title="${x.label}: مبيعات ${num(x.sales)} ج.م · ربح ${num(x.profit)} ج.م">
+    <div class="cv">${x.sales ? num(x.sales) : ''}</div>
+    <div class="cbars"><i class="bs" style="height:${Math.max(2, Math.round(x.sales / max * 100))}%"></i><i class="bp" style="height:${Math.max(2, Math.round(x.profit / max * 100))}%"></i></div>
+    <div class="cl">${x.label}</div></div>`).join('')}</div>
+  <div class="legend"><span><i class="dot bs"></i>المبيعات (شاملة الضريبة)</span><span><i class="dot bp"></i>الربح</span></div>`;
 }
 
 /* ---- التقارير ---- */
@@ -255,15 +285,17 @@ function renderReports() {
     <div class="stat"><b>${num(buys.length)} جهاز بـ ${num(sumA(buys, l => l.qty * l.price))}</b><span>شراء من عملاء</span></div>
     <div class="stat"><b>${num(rest.reduce((t, l) => t + l.qty, 0))} قطعة</b><span>توريد بضاعة</span></div>
   </div>
+  <h3 class="sec">المبيعات والأرباح آخر ٦ شهور</h3>
+  ${chartHtml()}
   <h3 class="sec">أكتر الأصناف مبيعاً</h3>
   ${top.length ? `<div class="tbl"><table><thead><tr><th>الصنف</th><th>القطع</th><th>المبيعات</th><th class="cost">الربح</th></tr></thead><tbody>${top.map(([k, o]) => `<tr><td><b>${esc(k)}</b></td><td>${num(o.n)}</td><td>${num(o.s)}</td><td class="cost">${num(o.p)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="tbl"><div class="empty">مفيش مبيعات في الفترة دي.</div></div>'}
   <h3 class="sec">مبيعات الموظفين</h3>
   ${Object.keys(byEmp).length ? `<div class="tbl"><table><thead><tr><th>الموظف</th><th>عمليات</th><th>مبيعات</th><th class="cost">ربح</th></tr></thead><tbody>${Object.entries(byEmp).map(([k, o]) => `<tr><td><b>${esc(k)}</b></td><td>${num(o.n)}</td><td>${num(o.s)}</td><td class="cost">${num(o.p)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="tbl"><div class="empty">مفيش مبيعات في الفترة دي.</div></div>'}
   <h3 class="sec">تصدير ونسخ احتياطي</h3>
   <div class="bar">
-    <button id="xlsInv">📊 المخزن Excel</button>
-    <button id="xlsLog">📊 حركات الفترة Excel</button>
-    <button id="xlsPlans">📊 الأقساط Excel</button>
+    <button id="xlsInv" class="xls">${XLS_ICON} المخزن</button>
+    <button id="xlsLog" class="xls">${XLS_ICON} حركات الفترة</button>
+    <button id="xlsPlans" class="xls">${XLS_ICON} الأقساط</button>
     <button id="backupBtn" class="warn">💾 نسخة احتياطية كاملة</button>
   </div>
   <div class="note">النسخة الاحتياطية ملف JSON فيه كل البيانات (مخزن + حركات + شيفتات + أقساط). نزّلها كل فترة واحتفظ بيها.</div>`;
@@ -632,6 +664,7 @@ function download(name, blob) {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
+const XLS_ICON = '<svg class="xls-ic" viewBox="0 0 32 32" width="20" height="20" aria-hidden="true"><rect x="1" y="4" width="17" height="24" rx="3" fill="#0e5c2f"/><path d="M5.5 10.5l3.8 5.5-3.8 5.5h2.8l2.4-3.9 2.4 3.9h2.8l-3.8-5.5 3.8-5.5h-2.8l-2.4 3.9-2.4-3.9z" fill="#fff"/><rect x="16" y="7.5" width="15" height="17" rx="1.5" fill="#21a366"/><path d="M16 12.2h15M16 16.9h15M16 21.6h15M23.5 7.5v17" stroke="#fff" stroke-width="1.1"/></svg>';
 function xlsGuard() { if (typeof XLSX === 'undefined') { toast('مكتبة Excel مش متحملة — اتأكد من النت وافتح الصفحة من جديد.', true); return false; } return true; }
 function xlsItems() {
   if (!xlsGuard()) return;
@@ -818,10 +851,12 @@ function bind() {
 
   $('#themeBtn').onclick = () => {
     const cur = document.documentElement.dataset.theme;
-    const next = cur === 'dark' ? 'light' : 'dark';
+    const sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = cur ? cur === 'dark' : sysDark;
+    const next = isDark ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('theme', next); } catch (e) {}
-    $('#themeBtn').textContent = next === 'dark' ? '☀️' : '🌙';
+    $('#themeBtn').title = next === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي';
   };
 
   window.addEventListener('online', () => { syncUI(); });
@@ -839,7 +874,7 @@ function onDbChange(ev) {
 
 /* ============ التشغيل ============ */
 async function boot() {
-  try { const th = localStorage.getItem('theme'); if (th) { document.documentElement.dataset.theme = th; $('#themeBtn').textContent = th === 'dark' ? '☀️' : '🌙'; } } catch (e) {}
+  try { const th = localStorage.getItem('theme'); if (th) { document.documentElement.dataset.theme = th; $('#themeBtn').title = th === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي'; } } catch (e) {}
   bind();
   DB.onChange(onDbChange);
   render();
