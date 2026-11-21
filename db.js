@@ -1,7 +1,7 @@
 /* طبقة البيانات: Supabase + كاش محلي + مزامنة لحظية */
 'use strict';
 const DB = (() => {
-  let sb = null, ready = false, online = true, channel = null;
+  let sb = null, ready = false, online = true, channel = null, role = '';
   const state = { items: [], log: [], shifts: [], shop: null, plans: [], payments: [] };
   const listeners = [];
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
@@ -65,26 +65,56 @@ const DB = (() => {
   }
 
   function subscribe() {
-    channel = sb.channel('shop-live');
-    ['items', 'log', 'shifts', 'settings', 'plans', 'payments'].forEach(table => {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table }, p => {
-        if (p.eventType === 'DELETE') removeRow(table, p.old && p.old.id);
-        else applyRow(table, p.new);
-        sortAll(); saveCache();
-        fire(table === 'log' && p.eventType === 'INSERT' ? { table, inserted: unpack(p.new) } : { table });
+    const wire = ch => {
+      ['items', 'log', 'shifts', 'settings', 'plans', 'payments'].forEach(table => {
+        ch.on('postgres_changes', { event: '*', schema: 'public', table }, p => {
+          if (p.eventType === 'DELETE') removeRow(table, p.old && p.old.id);
+          else applyRow(table, p.new);
+          sortAll(); saveCache();
+          fire(table === 'log' && p.eventType === 'INSERT' ? { table, inserted: unpack(p.new) } : { table });
+        });
       });
-    });
+      return ch;
+    };
+    let settled = false;
+    channel = wire(sb.channel('shop-live', { config: { private: true } }));
+    const fallback = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { sb.removeChannel(channel); } catch (e) {}
+      channel = wire(sb.channel('shop-live-pub'));
+      channel.subscribe(st => { online = st === 'SUBSCRIBED'; fire({ table: '_status' }); });
+    }, 6000);
     channel.subscribe(st => {
-      const was = online;
+      if (st === 'SUBSCRIBED') { settled = true; clearTimeout(fallback); }
       online = st === 'SUBSCRIBED';
-      if (was !== online || st === 'SUBSCRIBED') fire({ table: '_status' });
+      fire({ table: '_status' });
     });
   }
 
   async function init(url, key) {
-    sb = window.supabase.createClient(url, key);
+    if (!sb) sb = window.supabase.createClient(url, key);
+    const { data: sess } = await sb.auth.getSession();
+    if (!sess || !sess.session) { const e = new Error('no-session'); e.code = 'AUTH'; throw e; }
+    try { const u = sess.session.user; role = (u && u.app_metadata && u.app_metadata.role) || 'cashier'; try { localStorage.setItem('role', role); } catch (e) {} } catch (e) {}
     await fetchAll();
     sortAll(); ready = true; online = true; saveCache(); subscribe();
+  }
+
+  async function link(url, key, pw) {
+    if (!sb) sb = window.supabase.createClient(url, key);
+    const cfg = window.SHOP_CONFIG || {};
+    const tries = [[cfg.cashierEmail, 'cashier'], [cfg.ownerEmail, 'owner']];
+    for (const [email, r] of tries) {
+      if (!email) continue;
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+      if (!error && data && data.session) {
+        role = (data.user && data.user.app_metadata && data.user.app_metadata.role) || r;
+        try { localStorage.setItem('role', role); } catch (e) {}
+        return role;
+      }
+    }
+    const e = new Error('bad-code'); e.code = 'AUTH'; throw e;
   }
 
   /* كتابة: كل جدول صف فيه id + doc (+t للوج) */
@@ -104,9 +134,10 @@ const DB = (() => {
   };
 
   return {
-    init, onChange, uid, loadCache,
+    init, onChange, uid, loadCache, link,
     get ready() { return ready; },
     get online() { return online && navigator.onLine !== false; },
+    get role() { return role; },
     state,
     saveShop: doc => put('settings', 'shop', doc),
     putItem: (id, doc) => put('items', id, doc),
