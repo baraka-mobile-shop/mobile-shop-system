@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e2a47">
+<title>سيستم المحل</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="boot"><div class="bootbox"><div class="spin"></div><div id="bootMsg">جاري التحميل...</div></div></div>
+
+<header class="topbar">
+  <div class="tb-main">
+    <button id="ownerBtn" class="tb-btn" title="دخول المالك">🔒</button>
+    <div class="tb-title">
+      <h1 id="shopTitle">سيستم المحل</h1>
+      <div id="sync" class="sync">جاري الاتصال...</div>
+    </div>
+    <button id="installBtn" class="tb-btn hidden" title="تثبيت التطبيق">⬇️</button>
+    <button id="themeBtn" class="tb-btn" title="الوضع الليلي">🌙</button>
+  </div>
+  <div id="shiftBar" class="shiftbar"></div>
+</header>
+
+<div id="msg" class="msg"></div>
+
+<nav class="tabs" id="tabs"></nav>
+
+<main id="main" class="wrap"></main>
+
+<div id="toasts"></div>
+
+<!-- صنف: إضافة/تعديل -->
+<dialog id="dItem" class="dlg">
+  <h3 id="dItemT">صنف جديد</h3>
+  <div class="form">
+    <label>اسم الصنف<input id="fName" placeholder="مثال: Samsung A54"></label>
+    <div class="grid2">
+      <label>النوع<select id="fCat"><option value="new">جديد</option><option value="used">مستعمل</option><option value="acc">اكسسوار</option></select></label>
+      <label>الكمية<input id="fQty" type="number" min="0" inputmode="numeric"></label>
+    </div>
+    <div class="grid2">
+      <label>سعر الشراء<input id="fBuy" type="number" min="0" inputmode="decimal"></label>
+      <label>سعر البيع<input id="fSell" type="number" min="0" inputmode="decimal"></label>
+    </div>
+    <div class="grid2">
+      <label>حد التنبيه (الكمية)<input id="fMin" type="number" min="0" inputmode="numeric" value="2"></label>
+      <label id="fTaxBox">ضريبة الجهاز (ج.م)
+        <div class="rowgap"><input id="fTaxAmt" type="number" min="0" inputmode="decimal"><button type="button" id="calcTax" class="mini">احسب</button></div>
+      </label>
+    </div>
+    <div class="grid2">
+      <label>المواصفات<input id="fSpec" placeholder="128GB / 8GB"></label>
+      <label>اللون<input id="fColor"></label>
+    </div>
+    <div class="grid2">
+      <label>البطارية %<input id="fBat" type="number" min="0" max="100" inputmode="numeric"></label>
+      <label>المورد<input id="fSup"></label>
+    </div>
+    <label id="fImeiBox">السريال / IMEI
+      <div class="rowgap"><input id="fImei" inputmode="numeric"><button type="button" id="fImeiScan" class="mini">📷 مسح</button></div>
+    </label>
+    <div id="multiBox" class="hidden">
+      <label>أرقام السريال (<span id="multiN"></span> جهاز، رقم في كل سطر)<textarea id="fImeis" rows="4" inputmode="numeric"></textarea></label>
+    </div>
+    <label>ملاحظات<input id="fNote"></label>
+  </div>
+  <div class="dlg-msg" id="itemMsg"></div>
+  <div class="dlg-actions">
+    <button id="itemDel" class="danger hidden">حذف الصنف</button>
+    <span class="sp"></span>
+    <button id="itemCancel">إلغاء</button>
+    <button id="itemSave" class="pri">حفظ</button>
+  </div>
+</dialog>
+
+<!-- بيع / توريد -->
+<dialog id="dMove" class="dlg">
+  <h3 id="dMoveT">بيع</h3>
+  <div id="dMoveInfo" class="note"></div>
+  <div class="form">
+    <div class="grid2">
+      <label>الكمية<input id="mQty" type="number" min="1" inputmode="numeric"></label>
+      <label id="mPriceL">سعر البيع للقطعة<input id="mPrice" type="number" min="0" inputmode="decimal"></label>
+    </div>
+    <div id="taxBox" class="grid2">
+      <label>ضريبة الجهاز (ج.م)<input id="bTaxAmt" type="number" min="0" inputmode="decimal"></label>
+      <label>الضمان (شهور)<input id="bWarranty" type="number" min="0" max="36" inputmode="numeric" value="0"></label>
+    </div>
+    <div id="sumLine" class="sumline"></div>
+    <div id="buyer">
+      <div class="sec-t">بيانات المشتري</div>
+      <div class="grid2">
+        <label>الاسم<input id="bName"></label>
+        <label>التليفون<input id="bPhone" inputmode="tel"></label>
+      </div>
+      <div class="grid2">
+        <label>الرقم القومي<input id="bNid" inputmode="numeric"></label>
+        <label>العنوان<input id="bAddr"></label>
+      </div>
+      <div class="sec-t">طريقة الدفع</div>
+      <div class="payrow">
+        <label class="radio"><input type="radio" name="paym" value="cash" checked> كاش كامل</label>
+        <label class="radio"><input type="radio" name="paym" value="inst"> تقسيط</label>
+      </div>
+      <div id="instBox" class="hidden">
+        <div class="grid2">
+          <label>المقدم (ج.م)<input id="bDown" type="number" min="0" inputmode="decimal"></label>
+          <label>عدد الشهور<input id="bMonths" type="number" min="1" max="36" inputmode="numeric" value="6"></label>
+        </div>
+        <label>تاريخ أول قسط<input id="bFirstDue" type="date"></label>
+        <div id="instCalc" class="sumline"></div>
+      </div>
+    </div>
+  </div>
+  <div class="dlg-msg" id="moveMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="moveCancel">إلغاء</button>
+    <button id="moveOk" class="sell">تأكيد البيع</button>
+  </div>
+</dialog>
+
+<!-- شراء من عميل -->
+<dialog id="dBuy" class="dlg">
+  <h3>شراء موبايل من عميل</h3>
+  <div class="form">
+    <div class="sec-t">بيانات البائع (العميل)</div>
+    <div class="grid2">
+      <label>الاسم<input id="sName"></label>
+      <label>التليفون<input id="sPhone" inputmode="tel"></label>
+    </div>
+    <div class="grid2">
+      <label>الرقم القومي<input id="sNid" inputmode="numeric"></label>
+      <label>العنوان<input id="sAddr"></label>
+    </div>
+    <div class="sec-t">بيانات الجهاز</div>
+    <label>اسم الموبايل<input id="sDev" placeholder="مثال: iPhone 12"></label>
+    <div class="grid2">
+      <label>المواصفات<input id="sSpec"></label>
+      <label>اللون<input id="sColor"></label>
+    </div>
+    <div class="grid2">
+      <label>البطارية %<input id="sBat" type="number" min="0" max="100"></label>
+      <label>السريال / IMEI
+        <div class="rowgap"><input id="sImei" inputmode="numeric"><button type="button" id="sImeiScan" class="mini">📷</button></div>
+      </label>
+    </div>
+    <div class="grid2">
+      <label>سعر الشراء<input id="sBuy" type="number" min="0" inputmode="decimal"></label>
+      <label>سعر البيع المقترح<input id="sSell" type="number" min="0" inputmode="decimal"></label>
+    </div>
+    <label>ضريبة الجهاز (ج.م)<input id="sTaxAmt" type="number" min="0" inputmode="decimal"></label>
+    <label>ملاحظات<input id="sNote"></label>
+  </div>
+  <div class="dlg-msg" id="buyMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="buyCancel">إلغاء</button>
+    <button id="buyOk" class="pri">تسجيل الشراء</button>
+  </div>
+</dialog>
+
+<!-- فاتورة / إيصال -->
+<dialog id="dInv" class="dlg wide">
+  <div id="invBox" class="paper"></div>
+  <div class="dlg-msg prMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="invClose">إغلاق</button>
+    <button id="invPrint" class="pri">🖨️ طباعة</button>
+  </div>
+</dialog>
+
+<!-- ملصق -->
+<dialog id="dLbl" class="dlg wide">
+  <div id="lblBox" class="paper"></div>
+  <div class="dlg-msg prMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="lblClose">إغلاق</button>
+    <button id="lblPrint" class="pri">🖨️ طباعة</button>
+  </div>
+</dialog>
+
+<!-- تقرير شيفت -->
+<dialog id="dShift" class="dlg wide">
+  <div id="shBox" class="paper"></div>
+  <div id="shCloseIn" class="form">
+    <div class="grid2">
+      <label>الكاش الفعلي المعدود<input id="shCount" type="number" inputmode="decimal"></label>
+      <label>ملاحظات القفل<input id="shCloseNote"></label>
+    </div>
+  </div>
+  <div class="dlg-msg prMsg"></div>
+  <div class="dlg-actions">
+    <button id="shCloseOk" class="danger">قفل الشيفت</button>
+    <span class="sp"></span>
+    <button id="shShut">إغلاق</button>
+    <button id="shPrint" class="pri">🖨️ طباعة</button>
+  </div>
+</dialog>
+
+<!-- فتح شيفت -->
+<dialog id="dShOpen" class="dlg">
+  <h3>فتح شيفت جديد</h3>
+  <div class="form">
+    <label>الكاش في الدرج<input id="shCash" type="number" min="0" inputmode="decimal" value="0"></label>
+    <label>ملاحظات<input id="shNote"></label>
+  </div>
+  <div class="dlg-msg" id="shOpenMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="shOpenCancel">إلغاء</button>
+    <button id="shOpenOk" class="pri">فتح الشيفت</button>
+  </div>
+</dialog>
+
+<!-- PIN المالك -->
+<dialog id="dPin" class="dlg">
+  <h3 id="pinT">دخول المالك</h3>
+  <div class="form">
+    <label>الرقم السري<input id="pin1" type="password" inputmode="numeric" autocomplete="off"></label>
+    <label id="pin2Box">تأكيد الرقم السري<input id="pin2" type="password" inputmode="numeric" autocomplete="off"></label>
+  </div>
+  <div class="dlg-msg" id="pinMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="pinCancel">إلغاء</button>
+    <button id="pinOk" class="pri">دخول</button>
+  </div>
+</dialog>
+
+<!-- اختيار الموظف -->
+<dialog id="dWho" class="dlg">
+  <h3>مين الشغال على الجهاز ده؟</h3>
+  <div id="whoList" class="chips"></div>
+  <div class="form"><label>الاسم<input id="whoName"></label></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="whoCancel">إلغاء</button>
+    <button id="whoOk" class="pri">تمام</button>
+  </div>
+</dialog>
+
+<!-- الإعدادات -->
+<dialog id="dSet" class="dlg">
+  <h3>إعدادات المحل</h3>
+  <div class="form">
+    <label>اسم المحل<input id="tName"></label>
+    <label>بيانات الفاتورة (تليفون/عنوان)<input id="tInfo"></label>
+    <div class="grid2">
+      <label>نسبة الضريبة %<input id="tVat" type="number" min="0" inputmode="decimal"></label>
+      <label>بادئة الباركود<input id="tPre"></label>
+    </div>
+    <label>أسماء الموظفين (افصل بفاصلة)<input id="tStaff" placeholder="أحمد، محمود"></label>
+    <button id="tPinChange" class="hidden">تغيير الرقم السري للمالك</button>
+  </div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="setCancel">إلغاء</button>
+    <button id="setOk" class="pri">حفظ</button>
+  </div>
+</dialog>
+
+<!-- تسجيل قسط -->
+<dialog id="dPay" class="dlg">
+  <h3 id="dPayT">تسجيل قسط</h3>
+  <div id="dPayInfo" class="note"></div>
+  <div class="form">
+    <label>المبلغ المدفوع<input id="pAmount" type="number" min="0" inputmode="decimal"></label>
+    <label>ملاحظات<input id="pNote"></label>
+  </div>
+  <div class="dlg-msg" id="payMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="payCancel">إلغاء</button>
+    <button id="payOk" class="pri">تسجيل</button>
+  </div>
+</dialog>
+
+<!-- كشف خطة تقسيط -->
+<dialog id="dPlan" class="dlg wide">
+  <div id="planBox" class="paper"></div>
+  <div class="dlg-msg prMsg"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="planClose">إغلاق</button>
+    <button id="planPrint" class="pri">🖨️ طباعة</button>
+  </div>
+</dialog>
+
+<!-- كاميرا المسح -->
+<dialog id="dScan" class="dlg">
+  <h3>مسح باركود / سريال</h3>
+  <video id="scanVideo" playsinline muted></video>
+  <div class="dlg-msg" id="scanMsg">وجّه الكاميرا ناحية الباركود...</div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="scanCancel">إلغاء</button>
+  </div>
+</dialog>
+
+<!-- عرض صنف -->
+<dialog id="dDetail" class="dlg wide">
+  <div id="detailBox"></div>
+  <div class="dlg-actions">
+    <span class="sp"></span>
+    <button id="detailClose">إغلاق</button>
+  </div>
+</dialog>
+
+<div id="printRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
