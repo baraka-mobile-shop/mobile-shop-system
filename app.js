@@ -482,7 +482,7 @@ function openMove(id, mode) {
   $('#dMoveInfo').textContent = 'المتاح حالياً: ' + num(i.qty);
   $('#moveMsg').textContent = '';
   $('#mQty').value = 1; $('#mQty').max = sell ? i.qty : '';
-  $('#mPriceL').textContent = sell ? 'سعر البيع للقطعة' : 'سعر الشراء للقطعة';
+  $('#mPriceLT').textContent = sell ? 'سعر البيع للقطعة' : 'سعر الشراء للقطعة';
   $('#mPrice').value = sell ? i.sell : i.buy;
   const b = $('#moveOk'); b.textContent = sell ? 'تأكيد البيع' : 'تأكيد التوريد'; b.className = sell ? 'sell' : 'pri';
   $('#buyer').style.display = sell ? '' : 'none';
